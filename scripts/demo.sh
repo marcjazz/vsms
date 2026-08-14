@@ -7,7 +7,7 @@
 #
 # NOT for production. sms-fake-orange impersonates Orange Cameroon's HTTP
 # API; it sends no real SMS to any real handset (see
-# app/sms-fake-orange/src/main.rs's own module doc). This script exists so
+# backends/apps/sms-fake-orange/src/main.rs's own module doc). This script exists so
 # a demo or a local smoke test doesn't have to be reassembled by hand every
 # time — confirmed end to end (composer send -> delivered, visible on
 # /messages) in the session that added it.
@@ -39,7 +39,7 @@ DATABASE_URL="postgres://postgres:postgres@localhost:${PG_PORT}/${DB_NAME}"
 RUN_DIR="$ROOT/.demo"
 PEPPER_FILE="$RUN_DIR/pepper"
 KEY_FILE="$RUN_DIR/console-client-key.pem"
-ENV_LOCAL="$ROOT/admin/.env.local"
+ENV_LOCAL="$ROOT/frontends/apps/admin/.env.local"
 PROCS="fake-orange gateway worker admin"
 
 log() { echo "==> $*"; }
@@ -127,7 +127,7 @@ up() {
   # Routes screens and the route simulator — `Provider`/`Route.read` gained
   # `auth().kind == "app"` in this same PR, so these two scopes are what
   # actually lets this console's credential list either model or call
-  # `simulateRoute` (`crates/sms-api/src/procedures.rs::Procedures::simulate`'s
+  # `simulateRoute` (`backends/crates/sms-api/src/procedures.rs::Procedures::simulate`'s
   # own `require_permission(ctx, "route:read")`). Editing either model still
   # needs a human role no token this deployment can issue carries (#194) —
   # scope alone doesn't change that, see `providers-screen.tsx`'s own doc.
@@ -136,7 +136,7 @@ up() {
   # procedure — same shape again, `DashboardSummary` isn't a model, so its
   # `@allow` admits any `auth().kind == "app"` caller unconditionally and
   # this scope is the real perimeter (`require_permission(ctx,
-  # "dashboard:read")`, `crates/sms-api/src/procedures.rs`'s own
+  # "dashboard:read")`, `backends/crates/sms-api/src/procedures.rs`'s own
   # `dashboard_snapshot`).
   prov_out="$(DATABASE_URL="$DATABASE_URL" SMS_HASH_PEPPER="$pepper" \
     ./target/debug/sms-gateway provision-client \
@@ -205,7 +205,7 @@ up() {
   ORANGE_CM_DLR_NOTIFY_URL="http://127.0.0.1:${GATEWAY_PORT}/dlr/orange_cm" \
     start_bg worker "$RUN_DIR/worker.log" ./target/debug/sms-worker
 
-  log "writing admin/.env.local"
+  log "writing frontends/apps/admin/.env.local"
   cat >"$ENV_LOCAL" <<EOF
 # Written by scripts/demo.sh — regenerated on every 'up', safe to discard.
 SMS_API_URL=http://127.0.0.1:${GATEWAY_PORT}

@@ -18,7 +18,7 @@ landing in parallel elsewhere at the time this runbook was written:
 - **No `provision-client` CLI subcommand exists yet.** Nothing today can
   mint an OAuth client + `private_key_jwt` keypair for the admin console
   to authenticate with. Step 6 below works around that by hand, the same
-  way `crates/sms-api/examples/send_test_message.rs` already works around
+  way `backends/crates/sms-api/examples/send_test_message.rs` already works around
   the equivalent gap for a test `App`/`AppClient`.
 - **No `fake-orange` demo profile exists yet.** Every step below assumes
   real Orange Cameroon `client_credentials` and a real, contracted sender
@@ -54,7 +54,7 @@ chmod 600 .env
 ```
 
 Fill in `.env` — every var traces to a real `#[arg(long, env = ...)]` in
-`app/sms-gateway/src/main.rs` / `app/sms-worker/src/main.rs`, or to a
+`backends/apps/sms-gateway/src/main.rs` / `backends/apps/sms-worker/src/main.rs`, or to a
 `docker-compose.yml` service block; see that file's own comments for
 which. At minimum:
 
@@ -74,7 +74,7 @@ here is silent until the first token validation fails.
 else, so a missing or too-short value fails the container at boot, not at
 the first `sendMessage` call. Generate it once and keep it: rotating later
 does not retroactively rehash rows already written under the old value —
-see `crates/sms-api/src/pepper.rs`'s own module doc.
+see `backends/crates/sms-api/src/pepper.rs`'s own module doc.
 
 ## 2. Build and bring up Postgres + migrations first
 
@@ -84,8 +84,8 @@ docker compose logs migrate
 ```
 
 Expect `migrations up to date` as the last line. `migrate` is a one-shot
-container (see `app/sms-migrate/src/main.rs`'s own module doc) — it
-applies `schema/migrations/postgres/{0001_init,0002_bootstrap}` exactly
+container (see `backends/apps/sms-migrate/src/main.rs`'s own module doc) — it
+applies `backends/migrations/postgres/{0001_init,0002_bootstrap}` exactly
 once each, tracked in a `schema_migrations` table this deploy path owns,
 under a Postgres advisory lock. It never regenerates anything; the two
 `up.sql` files it runs are embedded verbatim into the binary at compile
@@ -98,7 +98,7 @@ nothing downstream is safe to start — fix this before continuing.
 the first `/token` request... not at process start" if no active OP
 signing key exists. **That's stale relative to the code as of this PR** —
 found live, not by reading the doc: `Command::Serve` in
-`app/sms-gateway/src/main.rs` calls `sms_auth::op::load_signing_keys`
+`backends/apps/sms-gateway/src/main.rs` calls `sms_auth::op::load_signing_keys`
 *before* binding the listener, so a fresh database makes the container
 exit immediately and crash-loop under `restart: unless-stopped`. Worth
 fixing upstream (either the doc or the eager check), not done here —
@@ -125,7 +125,7 @@ already-running container).
 ## 4. Seed the `orange_cm` Provider row and a catch-all Route — before sms-gateway's first start
 
 `sms-gateway serve` resolves an `active` `Provider` row keyed `orange_cm`
-at startup — `resolve_provider_row_id` in `app/sms-gateway/src/main.rs` —
+at startup — `resolve_provider_row_id` in `backends/apps/sms-gateway/src/main.rs` —
 *before* binding its listener, the same ordering trap step 3 above already
 documents for the OP signing key. Nothing seeded this row until
 [#148](https://github.com/vymalo/vsms/issues/148): a fresh database made
@@ -214,9 +214,9 @@ now perform writes that require a human role (a `Provider` edit, for
 example). Two deliberate exceptions still use the console's own machine
 credential regardless of who is signed in: the composer's `previewMessage`/
 `sendMessage` calls (`sendMessage` structurally requires a machine caller —
-see `crates/sms-api/src/procedures.rs::caller_client_id`), and the
+see `backends/crates/sms-api/src/procedures.rs::caller_client_id`), and the
 messages list's own live-update poll (a process-wide singleton shared by
-every open browser tab — see `packages/gateway/src/request-credential.ts`'s
+every open browser tab — see `frontends/packages/gateway/src/request-credential.ts`'s
 own module doc). One consequence worth knowing before you sign in: the
 messages list and the dashboard now read *every app's* rows, not just this
 console's own — any signed-in human, regardless of role, can see across
@@ -235,7 +235,7 @@ not just "started"). `sms-gateway`'s `HEALTHCHECK` hits its own
 `GET /healthz` (added by this same PR — there was no health endpoint for
 either binary before it); `sms-worker` has no HTTP surface, so its
 `HEALTHCHECK` instead checks the mtime of a heartbeat file its `main.rs`
-touches every 15s (see `app/sms-worker/Dockerfile`'s own comment for why
+touches every 15s (see `backends/apps/sms-worker/Dockerfile`'s own comment for why
 that's a more meaningful signal than a bare "is the process running"
 check). Give both `--start-period` a few seconds before checking status.
 `sms-gateway` should now report `(healthy)` on the first attempt — both
@@ -284,7 +284,7 @@ permanent `401` under the Basic gate that then existed.
 gate entirely with a real session, but the exemption matters exactly as
 much — an unauthenticated probe would now be redirected to `/login`
 instead of 401'd, which a `HEALTHCHECK` reads as failure just the same.
-`admin/middleware.ts`'s matcher excludes `api/health` explicitly — see that file's own comment. `caddy`
+`frontends/apps/admin/middleware.ts`'s matcher excludes `api/health` explicitly — see that file's own comment. `caddy`
 depends on both `sms-gateway` and `admin` being healthy before it starts
 routing — see `deploy/Caddyfile`'s own comment for why the gateway and
 admin domains have to stay two separate origins rather than one
@@ -401,9 +401,9 @@ own comment on the `token_per_ip`/`token_global` zones for that
 reasoning in full.
 
 **#168 closed the composite key at the *application* layer instead** —
-not this edge, and not `sms-auth`: `app/sms-gateway/src/token_rate_limit.rs`
+not this edge, and not `sms-auth`: `backends/apps/sms-gateway/src/token_rate_limit.rs`
 is a second, defense-in-depth limiter mounted on `/token` itself
-(`app/sms-gateway/src/op.rs`, which already owns route assembly for that
+(`backends/apps/sms-gateway/src/op.rs`, which already owns route assembly for that
 path), keyed on the real `client_id` it reads from the request body it
 already has to buffer. It buffers with a bounded 64 KiB limit and always
 reconstructs the body before the real OAuth handler runs — a `/token`
@@ -431,10 +431,10 @@ cannot reach.
 
 Two instances of `migrate` starting at once (a redeploy racing a still-up
 previous stack) serialise on a Postgres advisory lock
-(`app/sms-migrate/src/main.rs`) rather than double-applying — see that
+(`backends/apps/sms-migrate/src/main.rs`) rather than double-applying — see that
 binary's own module doc for why a `schema_migrations` tracking table
 exists only in this deploy path, not in the committed
-`schema/migrations/` tree.
+`backends/migrations/` tree.
 
 ## Secrets — the decision, and what it doesn't protect against
 
@@ -560,7 +560,7 @@ see that renamed job's own comment in `values.yaml` for why: it seeds a
 catch-all `Route` alongside the `Provider` row now, since a `Provider`
 with no `Route` routes nothing since #62's engine landed) are both
 `pre-install,pre-upgrade` hooks — safe on every deploy because both are
-genuinely idempotent: `migrate` via `app/sms-migrate`'s own
+genuinely idempotent: `migrate` via `backends/apps/sms-migrate`'s own
 advisory-lock-guarded `schema_migrations` tracking table, `seedDispatch`
 via `sms-gateway seed-dispatch`'s own dedupe on both halves (`Provider`:
 `create` + catch-`23505`; `Route`: look up an existing one for the

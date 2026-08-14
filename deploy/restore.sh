@@ -52,7 +52,7 @@ fi
 
 # The pepper is part of the recoverable state, not just the database
 # (docs/runbooks/backup-restore.md). msisdnHash/bodyHash are HMAC-SHA256
-# keyed by SMS_HASH_PEPPER (crates/sms-api/src/pepper.rs); a dump restored
+# keyed by SMS_HASH_PEPPER (backends/crates/sms-api/src/pepper.rs); a dump restored
 # under a DIFFERENT pepper than the one active when it was taken matches
 # nothing — opt-out and dedupe lookups against the restored rows silently
 # stop working, with no error anywhere. This only WARNS, never blocks:
@@ -64,7 +64,7 @@ if [ -f "${manifest_path}" ]; then
     current_fp=$(printf '%s' "${SMS_HASH_PEPPER}" | sha256sum | cut -d' ' -f1)
     if [ "${stored_fp}" != "${current_fp}" ]; then
       echo "restore.sh: WARNING — SMS_HASH_PEPPER does not match the pepper this backup was taken under." >&2
-      echo "restore.sh: msisdnHash/bodyHash in the restored rows will not match anything hashed under the current pepper — opt-out and dedupe checks silently stop matching old rows. See crates/sms-api/src/pepper.rs and docs/runbooks/backup-restore.md before proceeding." >&2
+      echo "restore.sh: msisdnHash/bodyHash in the restored rows will not match anything hashed under the current pepper — opt-out and dedupe checks silently stop matching old rows. See backends/crates/sms-api/src/pepper.rs and docs/runbooks/backup-restore.md before proceeding." >&2
     else
       echo "restore.sh: pepper fingerprint matches — restored hashes stay comparable under the current SMS_HASH_PEPPER."
     fi

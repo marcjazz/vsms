@@ -92,7 +92,7 @@ question §10 says needs a lawyer.
 Three scripts, all under `deploy/`, all shipped inside
 `deploy/backup.Dockerfile` (`postgres:16-alpine` + `rclone` + `openssl` —
 the exact `pg_dump`/`pg_restore` this stack's own Postgres major version
-needs; unlike `app/sms-migrate`, this one has no substitute for a real
+needs; unlike `backends/apps/sms-migrate`, this one has no substitute for a real
 `postgres` client toolchain, so it stays on that base image rather than
 distroless):
 
@@ -146,7 +146,7 @@ the VM itself.
 ## The pepper is part of the recoverable state, not just the database
 
 `Message.msisdnHash`/`Message.bodyHash` are `HMAC-SHA256` keyed by
-`SMS_HASH_PEPPER` (`crates/sms-api/src/pepper.rs`, landed in #134). A
+`SMS_HASH_PEPPER` (`backends/crates/sms-api/src/pepper.rs`, landed in #134). A
 `pg_dump` backup captures the *hashes*, never the plaintext `msisdn`/body
 that produced them (that's the point of hashing them) — which means the
 backup is only useful for opt-out matching and dedupe if it is restored

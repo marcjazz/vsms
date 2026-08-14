@@ -18,20 +18,20 @@
 #      `POST /$procs/sendMessage` — a genuinely separate process, a
 #      genuinely separate credential, never touching Procedures directly.
 #   4. This script mints a THIRD, independent access token — the console's
-#      own credential, read from admin/.env.local, the exact identity
+#      own credential, read from frontends/apps/admin/.env.local, the exact identity
 #      admin's Next.js server holds — and polls `GET /messages/{id}`
-#      (the same route `packages/gateway/src/messages.ts`'s
+#      (the same route `frontends/packages/gateway/src/messages.ts`'s
 #      `getMessageById` calls) until that exact id reaches `delivered`.
 #      A 404 here would mean "exists, but not visible to this principal"
 #      (`getMessageById`'s own doc) — this script treats that as a
 #      reportable finding, never as something to route around.
 #
 # Why the same App (not two): `Message`'s own row policy in
-# schema/schema.cstack is `auth().kind == "user" || appId == auth().appId
+# schemas/vsms.cstack is `auth().kind == "user" || appId == auth().appId
 # || hasRole('system')`. No human-login role exists yet (AGENTS.md's M1
 # section — GatewayAuth only ever mints role="app"/"system"), so the
 # console's credential is itself just another App-scoped principal, not
-# a cross-tenant "operator" one — admin/app/messages/messages-screen.tsx
+# a cross-tenant "operator" one — frontends/apps/admin/app/messages/messages-screen.tsx
 # says exactly this in its own on-screen banner ("Scoped to this app
 # only... This is not a filter and not a bug"). Provisioning the
 # integrator under a DIFFERENT App would prove nothing this deployment
@@ -56,7 +56,7 @@ cd "$ROOT"
 GATEWAY_PORT="${VSMS_DEMO_GATEWAY_PORT:-8080}"
 ISSUER="http://127.0.0.1:${GATEWAY_PORT}"
 RUN_DIR="$ROOT/.demo"
-ENV_LOCAL="$ROOT/admin/.env.local"
+ENV_LOCAL="$ROOT/frontends/apps/admin/.env.local"
 INTEGRATOR_KEY="$RUN_DIR/integrator-client-key.pem"
 EXAMPLE_MANIFEST="$ROOT/examples/rust/Cargo.toml"
 EXAMPLE_BIN="$ROOT/examples/rust/target/debug/vsms-example-send"
@@ -95,7 +95,7 @@ b64url() {
 # private_key_jwt client assertion, hand-signed with the caller's own RSA
 # key via `openssl dgst -sign` (no extra JWT dependency: this script is
 # bash-only on purpose, matching this repo's stated shell-script
-# convention). Mirrors packages/gateway/src/token.ts's own mintAssertion
+# convention). Mirrors frontends/packages/gateway/src/token.ts's own mintAssertion
 # and examples/rust/sms-send's own sign_assertion field-for-field: iss=sub
 # =client_id, aud=token endpoint, a fresh jti every call (ClientAssertion
 # is insert-only and replay-protects on it), 60s TTL.
@@ -197,7 +197,7 @@ log "5/6 minting the console's OWN access token (same identity admin's Next.js s
 CONSOLE_TOKEN="$(mint_access_token "$CONSOLE_CLIENT_ID" "$CONSOLE_KEY" "sms:read sms:send")"
 [ -n "$CONSOLE_TOKEN" ] && [ "$CONSOLE_TOKEN" != "null" ] || fail "console token exchange returned no access_token"
 
-log "6/6 polling GET /messages/{id} AS THE CONSOLE — the exact route packages/gateway/src/messages.ts's getMessageById calls — until delivered"
+log "6/6 polling GET /messages/{id} AS THE CONSOLE — the exact route frontends/packages/gateway/src/messages.ts's getMessageById calls — until delivered"
 DEADLINE=$(($(date +%s) + 60))
 LAST_STATE=""
 STATES_SEEN=""
@@ -214,7 +214,7 @@ while [ "$(date +%s)" -lt "$DEADLINE" ]; do
 
   if [ "$HTTP_STATUS" = "404" ]; then
     fail "GET /messages/${MESSAGE_ID} returned 404 under the CONSOLE's own credential. Per \
-packages/gateway/src/messages.ts's own module doc (point 9), sms-api cannot distinguish \
+frontends/packages/gateway/src/messages.ts's own module doc (point 9), sms-api cannot distinguish \
 \"never existed\" from \"exists but belongs to another App\" — this means the console's \
 principal (App $APP_ID) cannot see a message that unquestionably exists (it was just sent \
 and read back successfully under the integrator's own credential). THIS IS A FINDING, not a \

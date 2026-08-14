@@ -17,7 +17,7 @@
 # WAL/PITR is documented, not silently foreclosed.
 #
 # Why the manifest: a bare pg_dump says nothing about which pepper
-# (crates/sms-api/src/pepper.rs) hashed the msisdnHash/bodyHash columns
+# (backends/crates/sms-api/src/pepper.rs) hashed the msisdnHash/bodyHash columns
 # inside it. Storing the pepper itself next to the dump would turn a
 # backup leak into a full de-anonymisation of every row it covers, so
 # this stores only a SHA-256 *fingerprint* of the pepper — safe to keep
@@ -48,12 +48,12 @@ pg_dump "${DATABASE_URL}" --format=custom --file="${dump_path}"
 
 pepper_fingerprint=$(printf '%s' "${SMS_HASH_PEPPER}" | sha256sum | cut -d' ' -f1)
 
-# schema_migrations is app/sms-migrate's own bookkeeping table (not part
-# of the committed schema/migrations tree — see that binary's module doc).
+# schema_migrations is backends/apps/sms-migrate's own bookkeeping table (not part
+# of the committed backends/migrations tree — see that binary's module doc).
 # Recording which migrations this dump was taken under lets a restore
 # operator sanity-check they're restoring into a database that has run at
 # least the same migrations, not fewer. A database that predates
-# app/sms-migrate (or was migrated by hand) won't have this table; that's
+# backends/apps/sms-migrate (or was migrated by hand) won't have this table; that's
 # an empty string here, not a failure.
 applied_migrations=$(psql "${DATABASE_URL}" -Atc \
   "SELECT coalesce(string_agg(name, ',' ORDER BY name), '') FROM public.schema_migrations" \

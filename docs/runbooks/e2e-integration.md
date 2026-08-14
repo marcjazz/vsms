@@ -34,16 +34,16 @@ mode. It exits non-zero at the first broken link, naming the step.
    resulting Bearer token. A `--client-ref` unique to the run is attached so the later
    assertion matches *the* message, not *a* message (#160's own acceptance criterion 5).
 4. **Mints a third, independent access token** — the console's own credential, read
-   straight from `admin/.env.local` (`SMS_CONSOLE_CLIENT_ID` /
+   straight from `frontends/apps/admin/.env.local` (`SMS_CONSOLE_CLIENT_ID` /
    `SMS_CONSOLE_PRIVATE_KEY_PATH`), the exact identity the admin console's Next.js server
    holds. The script hand-signs the RFC 7523 assertion with `openssl dgst -sign` rather
    than pulling in a JWT library — this repo's shell scripts are bash-only by convention,
    and the scheme is a direct, field-for-field mirror of
-   `packages/gateway/src/token.ts`'s own `mintAssertion` (same claims, same 60s TTL).
+   `frontends/packages/gateway/src/token.ts`'s own `mintAssertion` (same claims, same 60s TTL).
 5. **Polls `GET /messages/{id}` as the console**, once a second, until that exact id
    reaches `delivered` (or a terminal non-delivered state, or a 60s timeout — either
    fails the script loudly). This is the same route
-   `packages/gateway/src/messages.ts`'s `getMessageById` calls — not a database query.
+   `frontends/packages/gateway/src/messages.ts`'s `getMessageById` calls — not a database query.
    Every poll also asserts the returned `appId` matches the App both clients share.
 
 The script prints the exact message id, the App id, both client ids, the observed state
@@ -53,7 +53,7 @@ confirmation.
 
 ## Why the same `App` for both clients, not two
 
-`Message`'s own row policy in `schema/schema.cstack` is:
+`Message`'s own row policy in `schemas/vsms.cstack` is:
 
 ```
 @@allow("list", auth().kind == "user" || appId == auth().appId || hasRole('system'))
@@ -63,7 +63,7 @@ confirmation.
 No `auth().kind == "user"` token exists anywhere in this deployment — `GatewayAuth` only
 ever mints `role: "app"`/`"system"` (`AGENTS.md`'s M1 section: no human-login flow exists
 yet). So the console's own credential is, today, just another `App`-scoped principal —
-not a cross-tenant "operator" one. `admin/app/messages/messages-screen.tsx` already says
+not a cross-tenant "operator" one. `frontends/apps/admin/app/messages/messages-screen.tsx` already says
 this on screen, verbatim: *"Scoped to this app only — the console's own service-account
 token can only read the one app it belongs to, so there is nothing to switch to. This is
 not a filter and not a bug."*
